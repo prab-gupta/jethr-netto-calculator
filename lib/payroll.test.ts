@@ -4,6 +4,7 @@ import {
   BONUS_CUNEO_TIERS,
   DETRAZIONE_ULTERIORE_65,
   MILANO_COMUNALE,
+  TRATTAMENTO_INTEGRATIVO,
 } from "./rates2026";
 
 /** Money comparison: two decimals is the resolution that matters here. */
@@ -67,10 +68,27 @@ describe("golden vector — RAL 30,000, 13 mensilita", () => {
 });
 
 describe("bracket and threshold behaviour", () => {
-  it("15,000 — bonus cuneo applies, detrazione at maximum", () => {
+  it("15,000 — bonus cuneo applies, detrazione at maximum, full TI paid", () => {
     const r = calcNet(15_000);
     expect(r.detrazioni.lavoroDipendente).toBe(1_955);
     expect(r.bonusCuneo).toBeGreaterThan(0);
+    // Imponibile 13,621.50 is under 15,000 and IRPEF lorda clears the
+    // capienza test, so the full 1,200 is due.
+    expect(r.trattamentoIntegrativo).toBe(1_200);
+  });
+
+  it("trattamento integrativo respects capienza instead of always paying", () => {
+    // The band above 15,000: detrazioni do not exceed IRPEF lorda for a
+    // standard employee, so nothing is due. Public calculators commonly pay
+    // the full 1,200 here and overstate net by that amount.
+    const mid = calcNet(25_000);
+    expect(mid.imponibileFiscale).toBeGreaterThan(TRATTAMENTO_INTEGRATIVO.fullUpTo);
+    expect(mid.imponibileFiscale).toBeLessThan(TRATTAMENTO_INTEGRATIVO.taperTo);
+    expect(mid.detrazioni.lavoroDipendente).toBeLessThan(mid.irpefLorda);
+    expect(mid.trattamentoIntegrativo).toBe(0);
+
+    // Above the band it is never due.
+    expect(calcNet(45_000).trattamentoIntegrativo).toBe(0);
   });
 
   it("40,000 — exercises the 33% bracket and both mid-range tapers", () => {
@@ -241,9 +259,10 @@ describe("monotonicity sweep, with documented exceptions", () => {
   // silently starting above it. Hardcoding the floor is exactly how the
   // 8,500 bonus-cuneo cliff went unnoticed.
   const CLIFF_THRESHOLDS = [
-    BONUS_CUNEO_TIERS[0].upTo,
-    MILANO_COMUNALE.exemptionThreshold,
-    DETRAZIONE_ULTERIORE_65.to,
+    BONUS_CUNEO_TIERS[0].upTo, // 8,500 — bonus re-prices at 5.3%
+    TRATTAMENTO_INTEGRATIVO.fullUpTo, // 15,000 — full 1,200 TI stops
+    MILANO_COMUNALE.exemptionThreshold, // 23,000 — addizionale comunale
+    DETRAZIONE_ULTERIORE_65.to, // 35,000 — the 65 euro credit
   ].sort((a, b) => a - b);
 
   it("sweeps from below the lowest cliff with a step smaller than the smallest drop", () => {
@@ -259,7 +278,7 @@ describe("monotonicity sweep, with documented exceptions", () => {
     expect(SWEEP_STEP).toBeLessThan(smallestDrop);
   });
 
-  it("net rises with gross except at exactly three known thresholds", () => {
+  it("net rises with gross except at exactly the known thresholds", () => {
     const step = SWEEP_STEP;
     const drops: { ral: number; imponibile: number }[] = [];
 

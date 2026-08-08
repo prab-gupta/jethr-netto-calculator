@@ -128,6 +128,31 @@ export const BONUS_CUNEO_TIERS: Bracket[] = [
 ];
 
 /* ------------------------------------------------------------------ *
+ * Trattamento integrativo (ex "bonus Renzi") — exempt cash, like the
+ * bonus cuneo: added to net, does not reduce IRPEF.
+ * ------------------------------------------------------------------ */
+
+/**
+ * <= 15,000  -> 1,200 in full, but only if IRPEF lorda exceeds the art. 13
+ *               detrazione reduced by 75. Below that the tax is already
+ *               fully absorbed and nothing is due.
+ * 15k - 28k  -> min(1,200, detrazioni spettanti - IRPEF lorda), floored at 0.
+ *               For most employees the detrazioni do NOT exceed the gross
+ *               tax in this band, so the real answer is usually zero.
+ * > 28,000   -> nothing.
+ *
+ * Widely mis-implemented: public calculators tend to pay the full 1,200
+ * across the whole 15k-28k band by default, which overstates net by ~1,200.
+ * The capienza condition is the entire point of the rule.
+ */
+export const TRATTAMENTO_INTEGRATIVO = {
+  amount: 1_200,
+  fullUpTo: 15_000,
+  taperTo: 28_000,
+  capienzaAllowance: 75,
+} as const;
+
+/* ------------------------------------------------------------------ *
  * 6. Addizionale regionale — Lombardia
  * ------------------------------------------------------------------ */
 

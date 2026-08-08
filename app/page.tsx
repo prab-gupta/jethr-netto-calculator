@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, Info, PiggyBank } from "lucide-react";
-import { Sidebar } from "./shell";
 import {
   GroupLabel,
   InfoHint,
@@ -18,6 +17,7 @@ import {
   DETRAZIONE_ULTERIORE_65,
   MILANO_COMUNALE,
   TAX_YEAR,
+  TRATTAMENTO_INTEGRATIVO,
 } from "@/lib/rates2026";
 
 const pct = (n: number) => `${(n * 100).toFixed(2).replace(".", ",")}%`;
@@ -41,6 +41,11 @@ const CLIFFS = [
     threshold: BONUS_CUNEO_TIERS[0].upTo,
     title: "Prima fascia del bonus cuneo fiscale superata",
     body: `Fino a ${eur(BONUS_CUNEO_TIERS[0].upTo)} di reddito la somma esente è il 7,1%; oltre, scende al 5,3%. La percentuale si applica all'intero reddito, non solo alla parte eccedente, quindi il bonus in busta cala di colpo.`,
+  },
+  {
+    threshold: TRATTAMENTO_INTEGRATIVO.fullUpTo,
+    title: "Trattamento integrativo non più spettante per intero",
+    body: `Fino a ${eur(TRATTAMENTO_INTEGRATIVO.fullUpTo)} di reddito il trattamento integrativo spetta per intero. Oltre, spetta solo per la parte in cui le detrazioni superano l'IRPEF lorda: per un dipendente standard, quasi sempre nulla.`,
   },
   {
     threshold: MILANO_COMUNALE.exemptionThreshold,
@@ -74,14 +79,15 @@ export default function Page() {
       r.imponibileFiscale <= c.threshold + CLIFF_WINDOW,
   );
 
-  // The bar decomposes the RAL, and the bonus cuneo is exempt cash paid on
-  // top of it — not a slice of it. So the Netto segment subtracts the bonus
-  // to keep the segments summing to exactly the RAL, and the label says so
-  // when a bonus is actually in play.
+  // The bar decomposes the RAL. Exempt sums (bonus cuneo, trattamento
+  // integrativo) are paid on top of it, not carved out of it, so the Netto
+  // segment nets them out to keep the segments summing to exactly the RAL —
+  // and the label says so when any are in play.
+  const esenti = r.bonusCuneo + r.trattamentoIntegrativo;
   const segments = [
     {
-      label: r.bonusCuneo > 0 ? "Netto (esclusa somma esente)" : "Netto",
-      amount: r.nettoAnnuo - r.bonusCuneo,
+      label: esenti > 0 ? "Netto (escluse somme esenti)" : "Netto",
+      amount: r.nettoAnnuo - esenti,
       className: "bg-accent",
     },
     { label: "Contributi INPS", amount: r.inps, className: "bg-neutral-800" },
@@ -94,20 +100,25 @@ export default function Page() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-
-      <main className="flex-1 overflow-x-hidden px-5 py-8 sm:px-10">
-        <div className="mx-auto max-w-[1100px]">
-          <header className="mb-6 flex flex-wrap items-center gap-3">
-            <h1 className="text-[32px] font-bold tracking-[-0.01em]">
+    <div className="min-h-screen bg-background">
+      <header className="grain relative overflow-hidden bg-[#0f0f0e] px-5 py-9 sm:px-10">
+        <div className="relative z-10 mx-auto max-w-[1100px]">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-[32px] font-bold tracking-[-0.01em] text-white">
               Simulatore netto
             </h1>
-            <span className="rounded-full border border-border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.05em] text-muted-foreground">
+            <span className="rounded-full border border-white/25 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.05em] text-white/70">
               Regole fiscali {TAX_YEAR}
             </span>
-          </header>
+          </div>
+          <p className="mt-2 text-[15px] text-white/60">
+            Dalla RAL al netto in busta paga, con il dettaglio di ogni trattenuta.
+          </p>
+        </div>
+      </header>
 
+      <main className="overflow-x-hidden px-5 py-8 sm:px-10">
+        <div className="mx-auto max-w-[1100px]">
           <div className="mb-6 flex items-start gap-2.5 rounded-lg bg-info px-4 py-3">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-foreground/70" />
             <p className="text-[14px] leading-snug">
@@ -215,7 +226,7 @@ export default function Page() {
             </div>
 
             <div className="border-t border-border px-6 py-5">
-              <WaterfallBar segments={segments} total={r.ral} />
+              <WaterfallBar segments={segments} />
             </div>
 
             <LabelRow
@@ -326,15 +337,25 @@ export default function Page() {
               share={`${pct(r.addizionaleComunale / r.ral || 0)} della RAL`}
             />
 
-            {r.bonusCuneo > 0 ? (
+            {r.bonusCuneo > 0 || r.trattamentoIntegrativo > 0 ? (
               <>
-                <GroupLabel>Bonus</GroupLabel>
-                <LabelRow
-                  tone="credit"
-                  label="Bonus cuneo fiscale"
-                  hint="Somma esente per redditi fino a 20.000 €: dal 7,1% al 4,8% del reddito da lavoro dipendente. Non è tassata e si aggiunge direttamente al netto."
-                  value={`+ ${eurCents(r.bonusCuneo)}`}
-                />
+                <GroupLabel>Somme esenti</GroupLabel>
+                {r.bonusCuneo > 0 ? (
+                  <LabelRow
+                    tone="credit"
+                    label="Bonus cuneo fiscale"
+                    hint="Somma esente per redditi fino a 20.000 €: dal 7,1% al 4,8% del reddito da lavoro dipendente. Non è tassata e si aggiunge direttamente al netto."
+                    value={`+ ${eurCents(r.bonusCuneo)}`}
+                  />
+                ) : null}
+                {r.trattamentoIntegrativo > 0 ? (
+                  <LabelRow
+                    tone="credit"
+                    label="Trattamento integrativo"
+                    hint="1.200 € per redditi fino a 15.000 €. Tra 15.000 e 28.000 spetta solo per la parte in cui le detrazioni superano l'IRPEF lorda, quindi per un dipendente standard di norma non spetta."
+                    value={`+ ${eurCents(r.trattamentoIntegrativo)}`}
+                  />
+                ) : null}
               </>
             ) : null}
 
@@ -345,6 +366,18 @@ export default function Page() {
                 share={`${pct(r.aliquotaEffettiva)} della RAL`}
                 strong
               />
+              {/* Without this row the totals do not reconcile on screen:
+                  RAL minus trattenute is not the net whenever exempt sums
+                  are paid on top. */}
+              {esenti > 0 ? (
+                <LabelRow
+                  tone="credit"
+                  label="Totale somme esenti"
+                  hint="Bonus cuneo fiscale e trattamento integrativo. Non sono tassati e si sommano al netto, quindi il netto è superiore alla RAL meno le trattenute."
+                  value={`+ ${eurCents(esenti)}`}
+                  strong
+                />
+              ) : null}
               <LabelRow
                 label="Netto annuo"
                 value={eurCents(r.nettoAnnuo)}
@@ -410,6 +443,28 @@ export default function Page() {
           </section>
         </div>
       </main>
+
+      <footer className="grain relative overflow-hidden bg-[#0f0f0e] px-5 py-6 sm:px-10">
+        <p className="relative z-10 mx-auto max-w-[1100px] text-[14px] text-white/60">
+          Built by{" "}
+          <a
+            href="https://www.linkedin.com/in/prabhavitgupta"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-white underline-offset-4 hover:underline"
+          >
+            Prabhavit Gupta
+          </a>{" "}
+          (
+          <a
+            href="mailto:prabhavitg@gmail.com"
+            className="text-white/80 underline-offset-4 hover:underline"
+          >
+            prabhavitg@gmail.com
+          </a>
+          ) for Jet HR
+        </p>
+      </footer>
     </div>
   );
 }

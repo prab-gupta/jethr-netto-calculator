@@ -18,22 +18,17 @@ import { cn } from "@/lib/utils";
  * grouping, so 1802 formats as "1802 €" while 23426 formats as "23.426 €" —
  * which reads as a bug when the two sit next to each other in a money column.
  */
-export const eur = (n: number) =>
+const fmt = (digits: number) =>
   new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
     useGrouping: "always",
-  }).format(n);
+  });
 
-export const eurCents = (n: number) =>
-  new Intl.NumberFormat("it-IT", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-    useGrouping: "always",
-  }).format(n);
+export const eur = (n: number) => fmt(0).format(n);
+export const eurCents = (n: number) => fmt(2).format(n);
 
 export function SectionBand({ children }: { children: React.ReactNode }) {
   return (
@@ -126,24 +121,20 @@ export function LabelRow({
   );
 }
 
-export type WaterfallSegment = {
+type WaterfallSegment = {
   label: string;
   amount: number;
   className: string;
 };
 
 /**
- * Stacked horizontal bar. The segments already sum to the RAL, so percentage
- * widths are all that's needed — no chart library.
+ * Stacked horizontal bar. Segments sum to the RAL by construction, so the
+ * total is derived rather than passed — percentage widths are all that's
+ * needed, and no chart library.
  */
-export function WaterfallBar({
-  segments,
-  total,
-}: {
-  segments: WaterfallSegment[];
-  total: number;
-}) {
+export function WaterfallBar({ segments }: { segments: WaterfallSegment[] }) {
   const visible = segments.filter((s) => s.amount > 0);
+  const total = visible.reduce((sum, s) => sum + s.amount, 0);
   return (
     <div>
       <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">

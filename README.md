@@ -73,37 +73,44 @@ material and most model training data still say 35%.
 
 ---
 
-## The three cliffs
+## The four cliffs
 
 Italian payroll contains points where **earning one euro more leaves you with
-less**. Three of them fall inside the standard Milan case:
+less**. Four of them fall inside the standard Milan case:
 
-**1. Bonus cuneo fiscale, first tier — €8.500 of imponibile, ≈ €153.**
+**1. Bonus cuneo fiscale, first tier — €8.500 of imponibile, ≈ €149.**
 The exempt supplement is a percentage of the *whole* reddito, not of a slice.
-Crossing €8.500 re-prices everything from 7,1% to 5,3%, so the supplement drops
-from €603,50 to €450,50. In RAL terms the step sits at about €9.360.
+Crossing €8.500 re-prices everything from 7,1% to 5,3%. RAL ≈ €9.365.
 
-**2. Addizionale comunale di Milano — €23.000 of imponibile, ≈ €184.**
+**2. Trattamento integrativo — €15.000 of imponibile, ≈ €127.**
+The full €1.200 stops at €15.000; above it the capienza test applies and a
+standard employee gets nothing. The art. 13 detrazione steps *up* at the same
+point (worth ~€1.070), so this crossing used to read as a large gain — adding
+the TI turned it into a net loss. RAL ≈ €16.520.
+
+**3. Addizionale comunale di Milano — €23.000 of imponibile, ≈ €181.**
 0,80% with an exemption up to €23.000. Above the threshold the rate applies to
-the *entire* imponibile, not to the excess. At €23.000 nothing is due; at
-€23.000,01 the full €184 is. In RAL terms the step sits at about €25.328.
+the *entire* imponibile, not to the excess. RAL ≈ €25.330.
 
-**3. Ulteriore detrazione di €65 — €35.000 of imponibile, €65.**
+**4. Ulteriore detrazione di €65 — €35.000 of imponibile, €63.**
 A flat credit over a closed range, so it does not taper — it vanishes.
+RAL ≈ €38.545.
 
-All three are real rules, not modelling artefacts. They are marked as cliffs in
+All four are real rules, not modelling artefacts. They are marked as cliffs in
 `lib/rates2026.ts`; **do not smooth them**. The result would look nicer and be
 wrong.
 
-Only the first was anticipated in the plan. The monotonicity sweep found the
-€65 one. The €8.500 one was missed by the *first version of that sweep* — it
-started at RAL €10.000 (above the cliff) and stepped by €100 (coarse enough
-that the gross gain masked the drop). Code review caught it, and the sweep now
-starts at €5.000 with a €25 step.
+Each one was found by a different mechanism, which is the point:
 
-There is also a large **upward** discontinuity at €15.000 of imponibile
-(net jumps ~€1.070), where the art. 13 detrazione steps up. Faithfully
-implemented, harmless to the employee, and invisible to a decrease-only sweep.
+- The **Milano** cliff came out of primary-source research during planning.
+- The **€65** cliff was found by the monotonicity sweep on its first run.
+- The **€8.500** cliff was *missed* by that sweep — it started at RAL €10.000
+  (above the cliff) and stepped by €100 (coarse enough that the gross gain
+  masked the drop). Code review caught it. The sweep now starts at €5.000 with
+  a €25 step, and both properties are asserted rather than trusted.
+- The **€15.000** cliff did not exist until the trattamento integrativo was
+  implemented, which happened because a cross-check against a public calculator
+  showed a 5,8% divergence at RAL €30.000 (see *Validation*).
 
 ---
 
@@ -112,7 +119,7 @@ implemented, harmless to the employee, and invisible to a decrease-only sweep.
 `npm test` — 24 assertions in `lib/payroll.test.ts`.
 
 The most valuable one sweeps RAL from €5k to €100k in €25 steps and asserts net
-never falls **except at exactly those three thresholds, by exactly those
+never falls **except at exactly those four thresholds, by exactly those
 amounts**. Written that way on purpose: a naive "net always rises" assertion
 fails on correct code and tempts the next person into deleting a real tax rule.
 
@@ -129,6 +136,34 @@ Cliff magnitudes are probed at ±0,005 of RAL. A coarser probe moves gross by a
 whole euro, which hands ~€0,60 of net back and understates the cliff.
 
 ---
+
+## Validation
+
+Cross-checked against `calcolastipendionetto.it` (Lombardia, 13 mensilità, no
+dependants) by driving it with Playwright.
+
+At RAL €30.000 it returned **€24.789,00**; this tool returned **€23.425,52** —
+a 5,8% divergence, far outside the ~1–2% expected from differing simplifications.
+Worth running down rather than waving away, and it turned out both tools were
+wrong in different directions:
+
+- **Their side:** the calculator pays the full €1.200 trattamento integrativo
+  across the whole 15k–28k band by default. The rule only pays to the extent
+  detrazioni exceed the gross tax; at this income they do not, so nothing is
+  due. Their own page concedes the condition is *"non verificabile dal
+  calcolatore"*. They also cannot apply Milan's addizionale comunale, because
+  they ask for a region but not a comune.
+- **Our side:** the trattamento integrativo was not modelled at all, written
+  off as superseded. It is not. At RAL €15.000 it pays €1.200 and this tool was
+  understating net by exactly that.
+
+Implementing it with its capienza condition left the €30.000 figure unchanged
+(it is genuinely zero there), corrected everything below ~€16.500, and created
+the fourth cliff documented above.
+
+**Takeaway:** a public calculator is a weaker oracle than the legislation. Use
+it to find *divergences worth investigating*, then resolve them against the
+primary source — never adopt its number because it disagrees.
 
 ## Assumptions and simplifications
 
@@ -150,7 +185,11 @@ dependants, no special regimes.
   365/365, so it is a no-op here, but not for a mid-year hire.
 - No rounding to the euro. Real payroll rounds; figures here will not match a
   cedolino to the last cent.
-- Not modelled: conguaglio di fine anno, trattamento integrativo, the €440
+- Trattamento integrativo **is** modelled, capienza condition included. Its
+  15k–28k formula uses the art. 13 detrazione only; other detrazioni that can
+  enter it (spese mediche, bonus edilizi) are out of scope for this persona,
+  which is the one case where our figure could understate net
+- Not modelled: conguaglio di fine anno, the €440
   reduction above €200.000, fringe benefits, welfare, buoni pasto, straordinari,
   premi di risultato.
 - TFR shown as gross accrual; tassazione separata at liquidation is out of scope.

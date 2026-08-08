@@ -34,6 +34,7 @@ import {
   MILANO_COMUNALE,
   TFR_DIVISOR,
   TFR_FONDO_GARANZIA,
+  TRATTAMENTO_INTEGRATIVO,
 } from "./rates2026";
 
 export type Mensilita = 13 | 14;
@@ -53,10 +54,10 @@ export type PayrollBreakdown = {
   addizionaleRegionale: number;
   addizionaleComunale: number;
   bonusCuneo: number;
+  trattamentoIntegrativo: number;
   totalTrattenute: number;
   nettoAnnuo: number;
   nettoMensile: number;
-  mensilita: Mensilita;
   /** Deferred pay. Accrued, but NOT included in nettoAnnuo. */
   tfrAnnuo: number;
   /** totalTrattenute / ral */
@@ -148,6 +149,25 @@ function calcBonusCuneo(reddito: number): number {
   return 0;
 }
 
+/**
+ * Trattamento integrativo. Exempt cash like the bonus cuneo — added to net,
+ * never reduces IRPEF. The capienza test is the rule's whole substance:
+ * in the 15k-28k band it pays only to the extent detrazioni exceed the tax,
+ * which for a standard employee is usually not at all.
+ */
+function calcTrattamentoIntegrativo(
+  reddito: number,
+  irpefLorda: number,
+  detrazioneLavoro: number,
+): number {
+  const t = TRATTAMENTO_INTEGRATIVO;
+  if (reddito <= 0 || reddito > t.taperTo) return 0;
+  if (reddito <= t.fullUpTo) {
+    return irpefLorda > detrazioneLavoro - t.capienzaAllowance ? t.amount : 0;
+  }
+  return Math.max(0, Math.min(t.amount, detrazioneLavoro - irpefLorda));
+}
+
 /** TFR accrual. Deferred pay — returned separately, never folded into net. */
 function calcTfr(ral: number): number {
   return ral / TFR_DIVISOR - ral * TFR_FONDO_GARANZIA;
@@ -175,10 +195,16 @@ export function calcNet(ral: number, mensilita: Mensilita = 13): PayrollBreakdow
   const addizionaleComunale = calcAddizionaleComunale(imponibileFiscale);
 
   const bonusCuneo = calcBonusCuneo(imponibileFiscale);
+  const trattamentoIntegrativo = calcTrattamentoIntegrativo(
+    imponibileFiscale,
+    irpefLorda,
+    lavoroDipendente,
+  );
 
   const totalTrattenute =
     inps + irpefNetta + addizionaleRegionale + addizionaleComunale;
-  const nettoAnnuo = ral - totalTrattenute + bonusCuneo;
+  const nettoAnnuo =
+    ral - totalTrattenute + bonusCuneo + trattamentoIntegrativo;
 
   return {
     ral,
@@ -190,10 +216,10 @@ export function calcNet(ral: number, mensilita: Mensilita = 13): PayrollBreakdow
     addizionaleRegionale,
     addizionaleComunale,
     bonusCuneo,
+    trattamentoIntegrativo,
     totalTrattenute,
     nettoAnnuo,
     nettoMensile: nettoAnnuo / mensilita,
-    mensilita,
     tfrAnnuo: calcTfr(ral),
     aliquotaEffettiva: ral > 0 ? totalTrattenute / ral : 0,
   };

@@ -12,19 +12,7 @@
  */
 @custom-variant dark (&:is(.dark *));
 
-/*
- * Jet HR product design tokens.
- *
- * Sampled from screenshots of the live app — NOT from the marketing site,
- * which uses a cream background, pill buttons and dark contrast sections that
- * appear nowhere in the product.
- *
- * Deliberate departures from shadcn defaults:
- *   - light mode only (no .dark block)
- *   - --radius 0.5rem, not 0.625rem
- *   - custom neutrals, not zinc
- *   - a lime accent used only as a garnish, never as a surface
- */
+/* Jet HR product design tokens, sampled from app screenshots. See README. */
 
 @theme inline {
   --color-background: var(--background);
@@ -34,8 +22,6 @@
   --font-sans:
     "Plus Jakarta Sans", "Plus Jakarta Sans Fallback", ui-sans-serif, system-ui,
     sans-serif;
-  --font-mono: ui-monospace, monospace;
-  --font-heading: var(--font-sans);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -49,39 +35,16 @@
   --color-accent-deep: var(--accent-deep);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.5);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 :root {
   /* The app is white. Not cream. */
   --background: #ffffff;
   --foreground: #1a1a1a;
-
-  --card: #ffffff;
-  --card-foreground: #1a1a1a;
-  --popover: #ffffff;
-  --popover-foreground: #1a1a1a;
-
-  /* Near-black, not pure — matches the "Salva" button. */
-  --primary: #1c1c1a;
-  --primary-foreground: #ffffff;
-
-  --secondary: #f5f5f4;
-  --secondary-foreground: #1a1a1a;
 
   /* Card header bands, segmented-control track. */
   --muted: #f5f5f4;
@@ -124,5 +87,19 @@
   /* Payroll figures must align down a column. Non-negotiable here. */
   .tnum {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Film-grain overlay. SVG feTurbulence as a data URI — no image asset, no
+     dependency, and it tiles at any size. Parent needs `relative`.
+     Tuned for film grain, not texture: high baseFrequency for fine specks,
+     one octave so it stays even rather than cloudy, and low opacity so it
+     reads as tooth on the black rather than as a pattern. */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 }
