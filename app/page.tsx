@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Info, PiggyBank } from "lucide-react";
+import { AlertTriangle, ChevronDown, Info, PiggyBank } from "lucide-react";
 import {
   GroupLabel,
   InfoHint,
@@ -289,7 +289,7 @@ export default function Page() {
               label="Contributi INPS a carico del dipendente"
               hint="Aliquota IVS del 9,19%, più un ulteriore 1% sulla quota di retribuzione oltre la prima fascia pensionabile. Sono interamente deducibili: si sottraggono prima di calcolare l'IRPEF."
               value={`− ${eurCents(r.inps)}`}
-              share={`${pct(r.inps / r.ral || 0)} della RAL`}
+              sharePct={pct(r.inps / r.ral || 0)}
             />
             <LabelRow
               label="Imponibile fiscale"
@@ -302,7 +302,7 @@ export default function Page() {
               label="IRPEF lorda"
               hint={`Scaglioni ${TAX_YEAR}: 23% fino a 28.000 €, 33% da 28.000 a 50.000 €, 43% oltre. Ogni scaglione è tassato alla propria aliquota.`}
               value={`− ${eurCents(r.irpefLorda)}`}
-              share={`${pct(r.irpefLorda / r.ral || 0)} della RAL`}
+              sharePct={pct(r.irpefLorda / r.ral || 0)}
             />
             <LabelRow
               indent
@@ -340,7 +340,7 @@ export default function Page() {
               label="IRPEF netta"
               hint="IRPEF lorda meno le detrazioni spettanti. Non può scendere sotto zero: le detrazioni non generano un rimborso."
               value={`− ${eurCents(r.irpefNetta)}`}
-              share={`${pct(r.irpefNetta / r.ral || 0)} della RAL`}
+              sharePct={pct(r.irpefNetta / r.ral || 0)}
               strong
             />
 
@@ -349,13 +349,13 @@ export default function Page() {
               label="Addizionale regionale (Lombardia)"
               hint="A scaglioni dall'1,23% all'1,73%, calcolata sull'imponibile fiscale. Gli scaglioni regionali non coincidono con quelli IRPEF."
               value={`− ${eurCents(r.addizionaleRegionale)}`}
-              share={`${pct(r.addizionaleRegionale / r.ral || 0)} della RAL`}
+              sharePct={pct(r.addizionaleRegionale / r.ral || 0)}
             />
             <LabelRow
               label="Addizionale comunale (Milano)"
               hint="0,80% con esenzione fino a 23.000 € di imponibile. Superata la soglia si applica all'intero imponibile, non solo alla parte eccedente."
               value={`− ${eurCents(r.addizionaleComunale)}`}
-              share={`${pct(r.addizionaleComunale / r.ral || 0)} della RAL`}
+              sharePct={pct(r.addizionaleComunale / r.ral || 0)}
             />
 
             {r.bonusCuneo > 0 || r.trattamentoIntegrativo > 0 ? (
@@ -384,7 +384,7 @@ export default function Page() {
               <LabelRow
                 label="Totale trattenute"
                 value={`− ${eurCents(r.totalTrattenute)}`}
-                share={`${pct(r.aliquotaEffettiva)} della RAL`}
+                sharePct={pct(r.aliquotaEffettiva)}
                 strong
               />
               {/* Without this row the totals do not reconcile on screen:
@@ -437,8 +437,9 @@ export default function Page() {
           <section className="mb-10 overflow-hidden rounded-xl border border-border">
             <SectionBand>Ipotesi e semplificazioni</SectionBand>
             <details className="group">
-              <summary className="cursor-pointer list-none px-6 py-4 text-[14px] text-muted-foreground marker:hidden hover:text-foreground">
-                Cosa è incluso nel modello e cosa no — apri per i dettagli
+              <summary className="flex cursor-pointer list-none items-center gap-2 px-6 py-4 text-[14px] text-muted-foreground marker:hidden hover:text-foreground">
+                <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+                Cosa è incluso nel modello e cosa no
               </summary>
               <ul className="space-y-2 border-t border-border px-6 py-4 text-[14px] leading-snug text-muted-foreground">
                 {[
@@ -450,7 +451,8 @@ export default function Page() {
                   "Previdenza complementare non considerata: i contributi a un fondo pensione sono deducibili e aumenterebbero il netto.",
                   "Le detrazioni non sono rapportate ai giorni di lavoro: per un anno intero il fattore è 365/365, ma non vale per chi è assunto in corso d'anno.",
                   "Nessun arrotondamento all'euro: la busta paga arrotonda, quindi le ultime cifre possono differire.",
-                  "Non modellati: conguaglio di fine anno, trattamento integrativo, fringe benefit, welfare, buoni pasto, straordinari e premi di risultato.",
+                  "Il trattamento integrativo è calcolato con la condizione di capienza: tra 15.000 e 28.000 € spetta solo per la parte in cui le detrazioni superano l'IRPEF lorda. La formula usa la sola detrazione da lavoro dipendente.",
+                  "Non modellati: conguaglio di fine anno, fringe benefit, welfare, buoni pasto, straordinari e premi di risultato.",
                 ].map((line) => (
                   <li key={line} className="flex gap-2">
                     <span aria-hidden className="text-border">

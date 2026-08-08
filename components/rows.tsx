@@ -68,7 +68,7 @@ export function LabelRow({
   label,
   hint,
   value,
-  share,
+  sharePct,
   indent,
   strong,
   last,
@@ -77,8 +77,8 @@ export function LabelRow({
   label: string;
   hint?: string;
   value: string;
-  /** e.g. "9,19% della RAL" */
-  share?: string;
+  /** Just the percentage, e.g. "9,19%" — the "della RAL" suffix is added here. */
+  sharePct?: string;
   indent?: boolean;
   strong?: boolean;
   last?: boolean;
@@ -103,9 +103,12 @@ export function LabelRow({
         </span>
         {hint ? <InfoHint text={hint} /> : null}
       </div>
-      {share ? (
-        <span className="tnum hidden w-36 text-right text-[13px] text-muted-foreground sm:block">
-          {share}
+      {sharePct ? (
+        <span className="hidden w-40 shrink-0 text-right text-[13px] text-muted-foreground sm:block">
+          <span className="tnum mr-1.5 rounded bg-foreground px-1.5 py-0.5 font-semibold text-background">
+            {sharePct}
+          </span>
+          della RAL
         </span>
       ) : null}
       <span
