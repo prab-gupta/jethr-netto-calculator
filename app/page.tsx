@@ -71,18 +71,7 @@ export default function Page() {
   const [mensilita, setMensilita] = useState<Mensilita>(13);
 
   const ral = Math.min(RAL_MAX, Math.max(0, Number(raw) || 0));
-
-  // Results are computed from COMMITTED inputs, not live ones: the brief asks
-  // for a page where the user enters inputs and sees the outputs on clicking
-  // "Calcola". Live-on-keystroke would be smoother but would not satisfy that.
-  const [submitted, setSubmitted] = useState({ ral: 30_000, mensilita: 13 as Mensilita });
-  const r = useMemo(
-    () => calcNet(submitted.ral, submitted.mensilita),
-    [submitted],
-  );
-
-  const dirty = ral !== submitted.ral || mensilita !== submitted.mensilita;
-  const calcola = () => setSubmitted({ ral, mensilita });
+  const r = useMemo(() => calcNet(ral, mensilita), [ral, mensilita]);
 
   const activeCliffs = CLIFFS.filter(
     (c) =>
@@ -140,11 +129,13 @@ export default function Page() {
           </div>
 
           {/* ---- Inputs ---- */}
+          {/* Results update live as the inputs change. The Calcola button is
+              kept because the brief asks for it and because it is the real
+              submit affordance — Enter and the on-screen button both fire it,
+              which on mobile is what dismisses the numeric keypad. It has
+              nothing left to compute, so it only needs to not reload. */}
           <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              calcola();
-            }}
+            onSubmit={(e) => e.preventDefault()}
             className="mb-6 overflow-hidden rounded-xl border border-border"
           >
             <SectionBand>Dati di partenza</SectionBand>
@@ -219,11 +210,9 @@ export default function Page() {
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-4 border-t border-border bg-muted/40 px-6 py-4">
-              {dirty ? (
-                <span className="text-[13px] text-muted-foreground">
-                  Dati modificati — premi Calcola per aggiornare i risultati.
-                </span>
-              ) : null}
+              <span className="text-[13px] text-muted-foreground">
+                I risultati si aggiornano mentre digiti.
+              </span>
               <button
                 type="submit"
                 className="rounded-lg bg-primary px-7 py-2.5 text-[15px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
