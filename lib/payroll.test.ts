@@ -231,16 +231,40 @@ describe("monotonicity sweep, with documented exceptions", () => {
     return calcNet(ral - EPS).nettoAnnuo - calcNet(ral + EPS).nettoAnnuo;
   };
 
+  // Start below the lowest cliff, step smaller than the smallest drop.
+  // Both properties are asserted below rather than trusted.
+  const SWEEP_FROM = 5_000;
+  const SWEEP_STEP = 25;
+
+  // Derived from the rate tables, not hardcoded: if a new cliff is introduced
+  // below the current floor, the sweep follows it automatically instead of
+  // silently starting above it. Hardcoding the floor is exactly how the
+  // 8,500 bonus-cuneo cliff went unnoticed.
+  const CLIFF_THRESHOLDS = [
+    BONUS_CUNEO_TIERS[0].upTo,
+    MILANO_COMUNALE.exemptionThreshold,
+    DETRAZIONE_ULTERIORE_65.to,
+  ].sort((a, b) => a - b);
+
+  it("sweeps from below the lowest cliff with a step smaller than the smallest drop", () => {
+    // Guards the two properties that make the sweep meaningful. Without this,
+    // raising the floor or the step keeps toHaveLength(3) green while hiding
+    // a real cliff.
+    const lowestCliffRal = CLIFF_THRESHOLDS[0] / (1 - 0.0919);
+    expect(SWEEP_FROM).toBeLessThan(lowestCliffRal);
+
+    const smallestDrop = Math.min(...CLIFF_THRESHOLDS.map(cliffAt));
+    // A step this size gains less net than the smallest cliff loses, so no
+    // drop can be masked by the gross increase across one step.
+    expect(SWEEP_STEP).toBeLessThan(smallestDrop);
+  });
+
   it("net rises with gross except at exactly three known thresholds", () => {
-    // Start below the lowest cliff (8,500 imponibile ~= 9,360 RAL) and step
-    // finely enough that a ~150 euro drop cannot be masked by the gross gain.
-    // The original sweep started at 10,000 with step 100 and missed the
-    // bonus-cuneo cliff entirely on both counts.
-    const step = 25;
+    const step = SWEEP_STEP;
     const drops: { ral: number; imponibile: number }[] = [];
 
-    let prev = calcNet(5_000);
-    for (let ral = 5_000 + step; ral <= 100_000; ral += step) {
+    let prev = calcNet(SWEEP_FROM);
+    for (let ral = SWEEP_FROM + step; ral <= 100_000; ral += step) {
       const cur = calcNet(ral);
       if (cur.nettoAnnuo < prev.nettoAnnuo) {
         drops.push({ ral, imponibile: cur.imponibileFiscale });
@@ -248,16 +272,11 @@ describe("monotonicity sweep, with documented exceptions", () => {
       prev = cur;
     }
 
-    expect(drops).toHaveLength(3);
-
-    const thresholds = [
-      BONUS_CUNEO_TIERS[0].upTo, // 8,500 — bonus cuneo re-prices at 5.3%
-      MILANO_COMUNALE.exemptionThreshold, // 23,000 — addizionale comunale
-      DETRAZIONE_ULTERIORE_65.to, // 35,000 — the 65 euro credit
-    ];
+    // Assert against thresholds derived from the rate tables, not a count.
+    expect(drops).toHaveLength(CLIFF_THRESHOLDS.length);
     drops.forEach((drop, i) => {
-      expect(drop.imponibile).toBeGreaterThan(thresholds[i]);
-      expect(drop.imponibile).toBeLessThan(thresholds[i] + step);
+      expect(drop.imponibile).toBeGreaterThan(CLIFF_THRESHOLDS[i]);
+      expect(drop.imponibile).toBeLessThan(CLIFF_THRESHOLDS[i] + step);
     });
   });
 

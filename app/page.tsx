@@ -27,38 +27,51 @@ const pct = (n: number) => `${(n * 100).toFixed(2).replace(".", ",")}%`;
  * rules, not modelling artefacts — see lib/rates2026.ts. We warn when the
  * user lands just above one, because it is the most actionable thing this
  * screen knows and no other calculator surfaces it.
+ *
+ * The copy states the RULE and never quotes a euro figure. An earlier version
+ * computed "circa X €" from the rate constants, which produced a number that
+ * contradicted the actual figure in the breakdown table two inches below it
+ * (the constants price the threshold, the table prices the user's reddito).
+ * The real amounts are already on screen; the banner explains why they moved.
  */
+const CLIFF_WINDOW = 1_500;
+
 const CLIFFS = [
   {
     threshold: BONUS_CUNEO_TIERS[0].upTo,
-    window: 1_000,
     title: "Prima fascia del bonus cuneo fiscale superata",
-    body: `Fino a ${eur(BONUS_CUNEO_TIERS[0].upTo)} di reddito la somma esente è il 7,1%; oltre, scende al 5,3% e si applica all'intero reddito, non solo alla parte eccedente. Il bonus passa da circa ${eur(BONUS_CUNEO_TIERS[0].upTo * BONUS_CUNEO_TIERS[0].rate)} a circa ${eur(BONUS_CUNEO_TIERS[0].upTo * BONUS_CUNEO_TIERS[1].rate)} l'anno.`,
+    body: `Fino a ${eur(BONUS_CUNEO_TIERS[0].upTo)} di reddito la somma esente è il 7,1%; oltre, scende al 5,3%. La percentuale si applica all'intero reddito, non solo alla parte eccedente, quindi il bonus in busta cala di colpo.`,
   },
   {
     threshold: MILANO_COMUNALE.exemptionThreshold,
-    window: 1_500,
     title: "Soglia di esenzione dell'addizionale comunale superata",
-    body: `Sopra i ${eur(MILANO_COMUNALE.exemptionThreshold)} di imponibile, l'addizionale comunale di Milano dello 0,80% si applica all'intero imponibile e non solo alla parte eccedente: circa ${eur(MILANO_COMUNALE.exemptionThreshold * MILANO_COMUNALE.rate)} l'anno. Appena sotto la soglia non è dovuta nulla.`,
+    body: `Fino a ${eur(MILANO_COMUNALE.exemptionThreshold)} di imponibile l'addizionale comunale di Milano non è dovuta. Superata la soglia, lo 0,80% si applica all'intero imponibile e non solo alla parte eccedente.`,
   },
   {
     threshold: DETRAZIONE_ULTERIORE_65.to,
-    window: 1_500,
     title: "Ulteriore detrazione di 65 € non più spettante",
     body: `L'ulteriore detrazione di ${eur(DETRAZIONE_ULTERIORE_65.amount)} spetta solo fino a ${eur(DETRAZIONE_ULTERIORE_65.to)} di imponibile. È un importo fisso, quindi si perde per intero appena superata la soglia.`,
   },
 ];
 
+/** `max` on a number input is advisory — paste bypasses it. Clamp for real. */
+const RAL_MAX = 1_000_000;
+
 export default function Page() {
-  const [ral, setRal] = useState(30_000);
+  // Keep the raw string so the field can be cleared while typing. Deriving the
+  // number on render instead of storing it avoids the "045000" the old
+  // snap-to-0 onChange produced, and clamps pasted values like 1e308 that the
+  // HTML max attribute does not enforce.
+  const [raw, setRaw] = useState("30000");
   const [mensilita, setMensilita] = useState<Mensilita>(13);
 
+  const ral = Math.min(RAL_MAX, Math.max(0, Number(raw) || 0));
   const r = useMemo(() => calcNet(ral, mensilita), [ral, mensilita]);
 
   const activeCliffs = CLIFFS.filter(
     (c) =>
       r.imponibileFiscale > c.threshold &&
-      r.imponibileFiscale <= c.threshold + c.window,
+      r.imponibileFiscale <= c.threshold + CLIFF_WINDOW,
   );
 
   // The bar decomposes the RAL, and the bonus cuneo is exempt cash paid on
@@ -121,10 +134,10 @@ export default function Page() {
                   id="ral"
                   type="number"
                   min={0}
-                  max={1_000_000}
+                  max={RAL_MAX}
                   step={500}
-                  value={ral}
-                  onChange={(e) => setRal(Math.max(0, Number(e.target.value) || 0))}
+                  value={raw}
+                  onChange={(e) => setRaw(e.target.value)}
                   className="tnum h-11 w-48 rounded-lg border border-input bg-background px-3 text-right text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 <span className="text-[15px] text-muted-foreground">€</span>
@@ -280,6 +293,17 @@ export default function Page() {
               hint="Fino a 1.000 € per redditi tra 20.000 e 32.000 €, poi decresce fino ad azzerarsi a 40.000 €."
               value={`+ ${eurCents(r.detrazioni.cuneo)}`}
             />
+            {/* Without this row the block visibly fails to add up: lorda minus
+                credits goes negative, IRPEF netta clamps to zero, and the
+                difference disappears with no explanation on screen. */}
+            {r.detrazioni.total > r.irpefLorda ? (
+              <LabelRow
+                indent
+                label="Detrazioni eccedenti l'imposta (non fruibili)"
+                hint="Le detrazioni non generano un rimborso: la parte che supera l'IRPEF lorda si perde. È il motivo per cui l'IRPEF netta si ferma a zero invece di diventare negativa."
+                value={`− ${eurCents(r.detrazioni.total - r.irpefLorda)}`}
+              />
+            ) : null}
             <LabelRow
               label="IRPEF netta"
               hint="IRPEF lorda meno le detrazioni spettanti. Non può scendere sotto zero: le detrazioni non generano un rimborso."
