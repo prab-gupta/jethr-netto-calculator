@@ -1,36 +1,207 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Simulatore netto — prototipo Jet HR
 
-## Getting Started
-
-First, run the development server:
+From RAL (annual gross) to annual and monthly net, with every withholding shown
+as its own line. Tax year **2026**.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev     # http://localhost:3000
+npm test        # 24 assertions over the payroll engine
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## What it does
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Enter a RAL, pick 13 or 14 mensilità, and the screen shows:
 
-## Learn More
+- **netto annuo** and **netto mensile**
+- a waterfall of where the gross went
+- **every deduction as its own row**, including each detrazione as a separate
+  credit rather than one lumped "detrazioni" figure
+- **TFR** accrued, shown separately as deferred pay
+- a contextual warning when the salary sits just above one of the two points
+  where net pay actually *falls* as gross rises
+- the model's own assumptions, on screen
 
-To learn more about Next.js, take a look at the following resources:
+The brief asked to show all the items withheld at gross. That is the part most
+calculators collapse, so it is the part this one opens up.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## The calculation chain
 
-## Deploy on Vercel
+Order matters — each step consumes the previous one's output. One function per
+step in `lib/payroll.ts`, so the code maps to this diagram line by line.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+RAL
+ (1) − INPS 9,19% (+1% above €56.224)      → imponibile fiscale
+ (2)   IRPEF lorda: 23% / 33% / 43%
+ (3) − detrazione lavoro dipendente (art. 13 TUIR)
+ (4) − ulteriore detrazione €65 (reddito 25k–35k)
+ (5) − detrazione cuneo fiscale (reddito 20k–40k)   → IRPEF netta (min 0)
+ (6) − addizionale regionale Lombardia (4 scaglioni, 1,23%–1,73%)
+ (7) − addizionale comunale Milano (0,80%, esenzione fino a €23.000)
+ (8) + bonus cuneo fiscale (reddito ≤ 20k, esente)  → NETTO ANNUO
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+ TFR ≈ 6,91% della RAL — accrued, never part of net
+```
+
+**The second IRPEF bracket is 33%, not 35%.** Legge di Bilancio 2026
+(L. 199/2025) cut it by two points effective 1 January 2026. Most published
+material and most model training data still say 35%.
+
+### Worked example — RAL €30.000, 13 mensilità
+
+| | |
+|---|---:|
+| RAL | 30.000,00 € |
+| Contributi INPS (9,19%) | − 2.757,00 € |
+| Imponibile fiscale | 27.243,00 € |
+| IRPEF lorda (23%) | − 6.265,89 € |
+| Detrazione lavoro dipendente | + 1.979,29 € |
+| Ulteriore detrazione | + 65,00 € |
+| Detrazione cuneo fiscale | + 1.000,00 € |
+| IRPEF netta | − 3.221,60 € |
+| Addizionale regionale | − 377,94 € |
+| Addizionale comunale | − 217,94 € |
+| **Netto annuo** | **23.425,52 €** |
+| **Netto mensile** | **1.802 €** |
+| TFR (differito) | 2.072 € |
+
+---
+
+## The three cliffs
+
+Italian payroll contains points where **earning one euro more leaves you with
+less**. Three of them fall inside the standard Milan case:
+
+**1. Bonus cuneo fiscale, first tier — €8.500 of imponibile, ≈ €153.**
+The exempt supplement is a percentage of the *whole* reddito, not of a slice.
+Crossing €8.500 re-prices everything from 7,1% to 5,3%, so the supplement drops
+from €603,50 to €450,50. In RAL terms the step sits at about €9.360.
+
+**2. Addizionale comunale di Milano — €23.000 of imponibile, ≈ €184.**
+0,80% with an exemption up to €23.000. Above the threshold the rate applies to
+the *entire* imponibile, not to the excess. At €23.000 nothing is due; at
+€23.000,01 the full €184 is. In RAL terms the step sits at about €25.328.
+
+**3. Ulteriore detrazione di €65 — €35.000 of imponibile, €65.**
+A flat credit over a closed range, so it does not taper — it vanishes.
+
+All three are real rules, not modelling artefacts. They are marked as cliffs in
+`lib/rates2026.ts`; **do not smooth them**. The result would look nicer and be
+wrong.
+
+Only the first was anticipated in the plan. The monotonicity sweep found the
+€65 one. The €8.500 one was missed by the *first version of that sweep* — it
+started at RAL €10.000 (above the cliff) and stepped by €100 (coarse enough
+that the gross gain masked the drop). Code review caught it, and the sweep now
+starts at €5.000 with a €25 step.
+
+There is also a large **upward** discontinuity at €15.000 of imponibile
+(net jumps ~€1.070), where the art. 13 detrazione steps up. Faithfully
+implemented, harmless to the employee, and invisible to a decrease-only sweep.
+
+---
+
+## Tests
+
+`npm test` — 24 assertions in `lib/payroll.test.ts`.
+
+The most valuable one sweeps RAL from €5k to €100k in €25 steps and asserts net
+never falls **except at exactly those three thresholds, by exactly those
+amounts**. Written that way on purpose: a naive "net always rises" assertion
+fails on correct code and tempts the next person into deleting a real tax rule.
+
+Two properties of the sweep are load-bearing and easy to get wrong: it must
+**start below the lowest cliff**, and its **step must be smaller than the
+smallest cliff** — otherwise the gross gain across a step hides the drop. The
+first version failed both and silently missed a real cliff.
+
+Other vectors cover the €30k golden case line by line, the no-tax area at
+€8.500, the 33% bracket at €40k, all three brackets plus the 1% INPS surcharge
+at €60k, the bonus cuneo below €20k, zero, and invalid input.
+
+Cliff magnitudes are probed at ±0,005 of RAL. A coarser probe moves gross by a
+whole euro, which hands ~€0,60 of net back and understates the cliff.
+
+---
+
+## Assumptions and simplifications
+
+Deliberate, and stated on screen as well as here.
+
+**Persona:** impiegato, tempo indeterminato, full year, resident in Milano, no
+dependants, no special regimes.
+
+- A projection for illustration. Not a payslip, not tax advice.
+- INPS at the standard 9,19% — no sector or firm-size variation, no massimale.
+- Addizionali treated as current-year. In reality they are computed on the
+  prior year's income and settled the following year via saldo and acconto.
+- Monthly net is annual ÷ mensilità. Detrazioni are spread over the 12 ordinary
+  months only, so a real tredicesima is taxed at close to the full rate and
+  December's net is *lower* than the flat figure suggests. The annual total is
+  right; the monthly split is smoothed.
+- Previdenza complementare not modelled — deductible, would raise net.
+- Detrazioni not pro-rated by days worked. For a full year the factor is
+  365/365, so it is a no-op here, but not for a mid-year hire.
+- No rounding to the euro. Real payroll rounds; figures here will not match a
+  cedolino to the last cent.
+- Not modelled: conguaglio di fine anno, trattamento integrativo, the €440
+  reduction above €200.000, fringe benefits, welfare, buoni pasto, straordinari,
+  premi di risultato.
+- TFR shown as gross accrual; tassazione separata at liquidation is out of scope.
+
+---
+
+## Design
+
+The UI replicates the **Jet HR product interface**, not the marketing site.
+The two differ: the product is white, uses ~8px controls, hairline-divided
+label/value rows, no dark sections, and lime only as a small accent. The
+marketing site is cream with pill buttons and dark contrast blocks.
+
+The prototype presents as a new in-product screen —
+`Personale › Simulatore netto` — sibling to the `Costo assunzione` tool that
+already exists in the sidebar. The sidebar in `app/shell.tsx` is deliberately
+static chrome; it exists only to put the calculator in the right frame.
+
+Tokens live in `app/globals.css`, sampled from product screenshots, overriding
+shadcn's defaults (which are dark mode + Geist + zinc — the opposite of this
+product). No component contains a raw hex value.
+
+---
+
+## Where this would go next
+
+Jet HR already publishes a calculator at `jethr.com/strumenti/calcolo-irpef`.
+It takes more inputs than this one (comune, dependants, previdenza
+complementare) and shows fewer output lines. Its input list is the roadmap:
+
+1. **Comune + regione selectors.** The rate tables are already shaped for it,
+   and the cliff generalises — around 870 Lombard comuni set their own
+   exemption threshold.
+2. **Familiari a carico** — slots into the detrazioni list as more credits.
+3. **Previdenza complementare** — one more subtraction before step (2).
+4. **Costo azienda** — employer INPS, INAIL, TFR. The employer side already
+   exists as a product surface; both could share this engine.
+5. **Month-by-month view** — the honest fix for the tredicesima distortion.
+6. **Net → gross inversion** — binary search over `calcNet`, ~10 lines. Useful
+   for salary ranges under the EU Pay Transparency Directive.
+
+---
+
+## Sources
+
+Rates carry their source and check date in `lib/rates2026.ts`.
+
+- IRPEF 2026 brackets — Legge di Bilancio 2026 (L. 199/2025, art. 1 co. 3)
+- Detrazioni — art. 13 TUIR, confirmed unchanged for 2026
+- INPS 1% threshold €56.224 and massimale €122.295 — INPS circ. n. 6/2026
+- Addizionale regionale Lombardia — 4 scaglioni, 1,23%–1,73%
+- Addizionale comunale Milano — 0,80%, esenzione €23.000
+
+All checked 2026-08-08.

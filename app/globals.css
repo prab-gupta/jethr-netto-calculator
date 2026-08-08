@@ -1,26 +1,128 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Pin dark: to an explicit .dark class that this app never sets.
+ *
+ * Load-bearing, not boilerplate: shadcn's button/tabs/badge ship 13 `dark:`
+ * utilities. Without this line Tailwind v4 falls back to the built-in
+ * prefers-color-scheme variant, so those styles would activate on any
+ * dark-OS machine and leak a half-dark theme into a light-only product UI.
+ */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Jet HR product design tokens.
+ *
+ * Sampled from screenshots of the live app — NOT from the marketing site,
+ * which uses a cream background, pill buttons and dark contrast sections that
+ * appear nowhere in the product.
+ *
+ * Deliberate departures from shadcn defaults:
+ *   - light mode only (no .dark block)
+ *   - --radius 0.5rem, not 0.625rem
+ *   - custom neutrals, not zinc
+ *   - a lime accent used only as a garnish, never as a surface
+ */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Literal names, never var() — @theme inline resolves at parse time, so
+     var(--font-plus-jakarta) would silently resolve to nothing. */
+  --font-sans:
+    "Plus Jakarta Sans", "Plus Jakarta Sans Fallback", ui-sans-serif, system-ui,
+    sans-serif;
+  --font-mono: ui-monospace, monospace;
+  --font-heading: var(--font-sans);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-deep: var(--accent-deep);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  /* The app is white. Not cream. */
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+
+  /* Near-black, not pure — matches the "Salva" button. */
+  --primary: #1c1c1a;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f5f5f4;
+  --secondary-foreground: #1a1a1a;
+
+  /* Card header bands, segmented-control track. */
+  --muted: #f5f5f4;
+  --muted-foreground: #6b6b6b;
+
+  /* Lime. A garnish: avatars, the netto figure, small markers. Never a
+     button, never a large fill. It is a light colour — dark text on top. */
+  --accent: #d6f04f;
+  --accent-foreground: #1a1a1a;
+  --accent-soft: #e9f5c4;
+  --accent-deep: #3f4a16;
+
+  /* Pale periwinkle info banner, as on "Puoi utilizzare il template". */
+  --info: #e7e9f7;
+
+  /* Amber warning, as on "30 anomalie di timbratura". */
+  --warning: #b45309;
+  --warning-soft: #fdf3e3;
+
+  --destructive: #dc2626;
+
+  /* The app is built almost entirely from hairlines. */
+  --border: #e7e7e4;
+  --input: #e0e0dc;
+  --ring: #c9c9c4;
+
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+  /* Payroll figures must align down a column. Non-negotiable here. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
 }

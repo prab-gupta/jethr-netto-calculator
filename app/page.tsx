@@ -1,67 +1,389 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useMemo, useState } from "react";
+import { AlertTriangle, Info, PiggyBank } from "lucide-react";
+import { Sidebar } from "./shell";
+import {
+  GroupLabel,
+  InfoHint,
+  LabelRow,
+  SectionBand,
+  WaterfallBar,
+  eur,
+  eurCents,
+} from "@/components/rows";
+import { calcNet, type Mensilita } from "@/lib/payroll";
+import {
+  BONUS_CUNEO_TIERS,
+  DETRAZIONE_ULTERIORE_65,
+  MILANO_COMUNALE,
+  TAX_YEAR,
+} from "@/lib/rates2026";
+
+const pct = (n: number) => `${(n * 100).toFixed(2).replace(".", ",")}%`;
+
+/**
+ * The three points where net pay genuinely falls as gross rises. All are real
+ * rules, not modelling artefacts — see lib/rates2026.ts. We warn when the
+ * user lands just above one, because it is the most actionable thing this
+ * screen knows and no other calculator surfaces it.
+ */
+const CLIFFS = [
+  {
+    threshold: BONUS_CUNEO_TIERS[0].upTo,
+    window: 1_000,
+    title: "Prima fascia del bonus cuneo fiscale superata",
+    body: `Fino a ${eur(BONUS_CUNEO_TIERS[0].upTo)} di reddito la somma esente è il 7,1%; oltre, scende al 5,3% e si applica all'intero reddito, non solo alla parte eccedente. Il bonus passa da circa ${eur(BONUS_CUNEO_TIERS[0].upTo * BONUS_CUNEO_TIERS[0].rate)} a circa ${eur(BONUS_CUNEO_TIERS[0].upTo * BONUS_CUNEO_TIERS[1].rate)} l'anno.`,
+  },
+  {
+    threshold: MILANO_COMUNALE.exemptionThreshold,
+    window: 1_500,
+    title: "Soglia di esenzione dell'addizionale comunale superata",
+    body: `Sopra i ${eur(MILANO_COMUNALE.exemptionThreshold)} di imponibile, l'addizionale comunale di Milano dello 0,80% si applica all'intero imponibile e non solo alla parte eccedente: circa ${eur(MILANO_COMUNALE.exemptionThreshold * MILANO_COMUNALE.rate)} l'anno. Appena sotto la soglia non è dovuta nulla.`,
+  },
+  {
+    threshold: DETRAZIONE_ULTERIORE_65.to,
+    window: 1_500,
+    title: "Ulteriore detrazione di 65 € non più spettante",
+    body: `L'ulteriore detrazione di ${eur(DETRAZIONE_ULTERIORE_65.amount)} spetta solo fino a ${eur(DETRAZIONE_ULTERIORE_65.to)} di imponibile. È un importo fisso, quindi si perde per intero appena superata la soglia.`,
+  },
+];
+
+export default function Page() {
+  const [ral, setRal] = useState(30_000);
+  const [mensilita, setMensilita] = useState<Mensilita>(13);
+
+  const r = useMemo(() => calcNet(ral, mensilita), [ral, mensilita]);
+
+  const activeCliffs = CLIFFS.filter(
+    (c) =>
+      r.imponibileFiscale > c.threshold &&
+      r.imponibileFiscale <= c.threshold + c.window,
+  );
+
+  // The bar decomposes the RAL, and the bonus cuneo is exempt cash paid on
+  // top of it — not a slice of it. So the Netto segment subtracts the bonus
+  // to keep the segments summing to exactly the RAL, and the label says so
+  // when a bonus is actually in play.
+  const segments = [
+    {
+      label: r.bonusCuneo > 0 ? "Netto (esclusa somma esente)" : "Netto",
+      amount: r.nettoAnnuo - r.bonusCuneo,
+      className: "bg-accent",
+    },
+    { label: "Contributi INPS", amount: r.inps, className: "bg-neutral-800" },
+    { label: "IRPEF", amount: r.irpefNetta, className: "bg-neutral-500" },
+    {
+      label: "Addizionali",
+      amount: r.addizionaleRegionale + r.addizionaleComunale,
+      className: "bg-neutral-300",
+    },
+  ];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+
+      <main className="flex-1 overflow-x-hidden px-5 py-8 sm:px-10">
+        <div className="mx-auto max-w-[1100px]">
+          <header className="mb-6 flex flex-wrap items-center gap-3">
+            <h1 className="text-[32px] font-bold tracking-[-0.01em]">
+              Simulatore netto
+            </h1>
+            <span className="rounded-full border border-border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.05em] text-muted-foreground">
+              Regole fiscali {TAX_YEAR}
+            </span>
+          </header>
+
+          <div className="mb-6 flex items-start gap-2.5 rounded-lg bg-info px-4 py-3">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-foreground/70" />
+            <p className="text-[14px] leading-snug">
+              Stima indicativa per un impiegato a tempo indeterminato residente
+              a Milano, senza familiari a carico né agevolazioni. Non sostituisce
+              il cedolino.
+            </p>
+          </div>
+
+          {/* ---- Inputs ---- */}
+          <section className="mb-6 overflow-hidden rounded-xl border border-border">
+            <SectionBand>Dati di partenza</SectionBand>
+
+            <div className="flex flex-wrap items-center gap-4 border-b border-border px-6 py-4">
+              <label
+                htmlFor="ral"
+                className="flex flex-1 items-center gap-1.5 text-[15px] text-muted-foreground"
+              >
+                Retribuzione annua lorda (RAL)
+                <InfoHint text="Il totale lordo annuo previsto dal contratto, comprensivo di tredicesima ed eventuale quattordicesima." />
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="ral"
+                  type="number"
+                  min={0}
+                  max={1_000_000}
+                  step={500}
+                  value={ral}
+                  onChange={(e) => setRal(Math.max(0, Number(e.target.value) || 0))}
+                  className="tnum h-11 w-48 rounded-lg border border-input bg-background px-3 text-right text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <span className="text-[15px] text-muted-foreground">€</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 border-b border-border px-6 py-4">
+              <span
+                id="mensilita-label"
+                className="flex flex-1 items-center gap-1.5 text-[15px] text-muted-foreground"
+              >
+                Mensilità
+                <InfoHint text="La RAL viene distribuita su 13 mensilità (CCNL Commercio) o 14 (es. Metalmeccanici). Il netto annuo non cambia: cambia solo l'importo di ciascuna mensilità." />
+              </span>
+              <div
+                role="radiogroup"
+                aria-labelledby="mensilita-label"
+                className="flex rounded-lg bg-muted p-1"
+              >
+                {([13, 14] as const).map((m) => (
+                  <button
+                    key={m}
+                    role="radio"
+                    aria-checked={mensilita === m}
+                    onClick={() => setMensilita(m)}
+                    className={
+                      mensilita === m
+                        ? "tnum rounded-md border border-border bg-background px-6 py-1.5 text-[14px] font-semibold shadow-sm"
+                        : "tnum rounded-md px-6 py-1.5 text-[14px] text-muted-foreground"
+                    }
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 px-6 py-4">
+              <span className="flex flex-1 items-center gap-1.5 text-[15px] text-muted-foreground">
+                Sede di riferimento
+                <InfoHint text="Il prototipo è limitato a Milano: le addizionali regionali e comunali sono deliberate localmente, quindi ogni comune richiede la propria tabella." />
+              </span>
+              <select
+                disabled
+                aria-label="Sede di riferimento"
+                className="h-11 w-48 cursor-not-allowed rounded-lg border border-input bg-muted px-3 text-[15px] text-muted-foreground"
+              >
+                <option>Milano (Lombardia)</option>
+              </select>
+            </div>
+          </section>
+
+          {/* ---- Result ---- */}
+          <section className="mb-6 overflow-hidden rounded-xl border border-border">
+            <SectionBand>Risultato</SectionBand>
+
+            <div className="grid gap-6 px-6 py-6 sm:grid-cols-2">
+              <div>
+                <p className="mb-1 text-[14px] text-muted-foreground">
+                  Netto annuo
+                </p>
+                <p className="tnum inline-block rounded-md bg-accent px-2 py-0.5 text-[40px] font-bold leading-tight text-accent-foreground">
+                  {eur(r.nettoAnnuo)}
+                </p>
+              </div>
+              <div>
+                <p className="mb-1 text-[14px] text-muted-foreground">
+                  Netto mensile{" "}
+                  <span className="tnum">(su {mensilita} mensilità)</span>
+                </p>
+                <p className="tnum text-[40px] font-bold leading-tight">
+                  {eur(r.nettoMensile)}
+                </p>
+              </div>
+            </div>
+
+            <div className="border-t border-border px-6 py-5">
+              <WaterfallBar segments={segments} total={r.ral} />
+            </div>
+
+            <LabelRow
+              label="Aliquota effettiva sulla RAL"
+              hint="Totale di contributi, IRPEF netta e addizionali diviso la RAL."
+              value={pct(r.aliquotaEffettiva)}
+              last
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </section>
+
+          {/* ---- Cliff warnings ---- */}
+          {activeCliffs.map((c) => (
+            <div
+              key={c.threshold}
+              className="mb-6 flex items-start gap-2.5 rounded-lg border border-warning/25 bg-warning-soft px-4 py-3"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <div>
+                <p className="text-[14px] font-semibold">{c.title}</p>
+                <p className="mt-0.5 text-[14px] leading-snug text-muted-foreground">
+                  {c.body}
+                </p>
+              </div>
+            </div>
+          ))}
+
+          {/* ---- Breakdown ---- */}
+          <section className="mb-6 overflow-hidden rounded-xl border border-border">
+            <SectionBand>Dettaglio trattenute</SectionBand>
+
+            <LabelRow
+              label="Retribuzione annua lorda"
+              value={eurCents(r.ral)}
+              strong
+            />
+
+            <GroupLabel>Contributi</GroupLabel>
+            <LabelRow
+              label="Contributi INPS a carico del dipendente"
+              hint="Aliquota IVS del 9,19%, più un ulteriore 1% sulla quota di retribuzione oltre la prima fascia pensionabile. Sono interamente deducibili: si sottraggono prima di calcolare l'IRPEF."
+              value={`− ${eurCents(r.inps)}`}
+              share={`${pct(r.inps / r.ral || 0)} della RAL`}
+            />
+            <LabelRow
+              label="Imponibile fiscale"
+              value={eurCents(r.imponibileFiscale)}
+              strong
+            />
+
+            <GroupLabel>IRPEF</GroupLabel>
+            <LabelRow
+              label="IRPEF lorda"
+              hint={`Scaglioni ${TAX_YEAR}: 23% fino a 28.000 €, 33% da 28.000 a 50.000 €, 43% oltre. Ogni scaglione è tassato alla propria aliquota.`}
+              value={`− ${eurCents(r.irpefLorda)}`}
+              share={`${pct(r.irpefLorda / r.ral || 0)} della RAL`}
+            />
+            <LabelRow
+              indent
+              tone="credit"
+              label="Detrazione per lavoro dipendente"
+              hint="Art. 13 TUIR. Non riduce il reddito ma l'imposta. Decresce all'aumentare del reddito e si azzera a 50.000 €."
+              value={`+ ${eurCents(r.detrazioni.lavoroDipendente)}`}
+            />
+            <LabelRow
+              indent
+              tone="credit"
+              label="Ulteriore detrazione"
+              hint={`Importo fisso di 65 € per redditi tra 25.000 e 35.000 €. Non è graduale: sopra i 35.000 € si perde per intero.`}
+              value={`+ ${eurCents(r.detrazioni.ulteriore65)}`}
+            />
+            <LabelRow
+              indent
+              tone="credit"
+              label="Detrazione cuneo fiscale"
+              hint="Fino a 1.000 € per redditi tra 20.000 e 32.000 €, poi decresce fino ad azzerarsi a 40.000 €."
+              value={`+ ${eurCents(r.detrazioni.cuneo)}`}
+            />
+            <LabelRow
+              label="IRPEF netta"
+              hint="IRPEF lorda meno le detrazioni spettanti. Non può scendere sotto zero: le detrazioni non generano un rimborso."
+              value={`− ${eurCents(r.irpefNetta)}`}
+              share={`${pct(r.irpefNetta / r.ral || 0)} della RAL`}
+              strong
+            />
+
+            <GroupLabel>Addizionali</GroupLabel>
+            <LabelRow
+              label="Addizionale regionale (Lombardia)"
+              hint="A scaglioni dall'1,23% all'1,73%, calcolata sull'imponibile fiscale. Gli scaglioni regionali non coincidono con quelli IRPEF."
+              value={`− ${eurCents(r.addizionaleRegionale)}`}
+              share={`${pct(r.addizionaleRegionale / r.ral || 0)} della RAL`}
+            />
+            <LabelRow
+              label="Addizionale comunale (Milano)"
+              hint="0,80% con esenzione fino a 23.000 € di imponibile. Superata la soglia si applica all'intero imponibile, non solo alla parte eccedente."
+              value={`− ${eurCents(r.addizionaleComunale)}`}
+              share={`${pct(r.addizionaleComunale / r.ral || 0)} della RAL`}
+            />
+
+            {r.bonusCuneo > 0 ? (
+              <>
+                <GroupLabel>Bonus</GroupLabel>
+                <LabelRow
+                  tone="credit"
+                  label="Bonus cuneo fiscale"
+                  hint="Somma esente per redditi fino a 20.000 €: dal 7,1% al 4,8% del reddito da lavoro dipendente. Non è tassata e si aggiunge direttamente al netto."
+                  value={`+ ${eurCents(r.bonusCuneo)}`}
+                />
+              </>
+            ) : null}
+
+            <div className="border-t-2 border-foreground/10">
+              <LabelRow
+                label="Totale trattenute"
+                value={`− ${eurCents(r.totalTrattenute)}`}
+                share={`${pct(r.aliquotaEffettiva)} della RAL`}
+                strong
+              />
+              <LabelRow
+                label="Netto annuo"
+                value={eurCents(r.nettoAnnuo)}
+                strong
+                last
+              />
+            </div>
+          </section>
+
+          {/* ---- TFR ---- */}
+          <section className="mb-6 overflow-hidden rounded-xl border border-border">
+            <SectionBand>Retribuzione differita</SectionBand>
+            <div className="flex items-start gap-4 px-6 py-5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft">
+                <PiggyBank className="h-4 w-4 text-accent-deep" />
+              </span>
+              <div className="flex-1">
+                <p className="text-[15px] font-semibold">
+                  TFR maturato nell&apos;anno
+                </p>
+                <p className="mt-0.5 text-[14px] leading-snug text-muted-foreground">
+                  Circa il 6,91% della RAL, accantonato e liquidato alla
+                  cessazione del rapporto.{" "}
+                  <strong className="font-semibold text-foreground">
+                    Non è incluso nel netto indicato sopra.
+                  </strong>
+                </p>
+              </div>
+              <span className="tnum text-[20px] font-semibold">
+                {eur(r.tfrAnnuo)}
+              </span>
+            </div>
+          </section>
+
+          {/* ---- Assumptions ---- */}
+          <section className="mb-10 overflow-hidden rounded-xl border border-border">
+            <SectionBand>Ipotesi e semplificazioni</SectionBand>
+            <details className="group">
+              <summary className="cursor-pointer list-none px-6 py-4 text-[14px] text-muted-foreground marker:hidden hover:text-foreground">
+                Cosa è incluso nel modello e cosa no — apri per i dettagli
+              </summary>
+              <ul className="space-y-2 border-t border-border px-6 py-4 text-[14px] leading-snug text-muted-foreground">
+                {[
+                  "Stima a scopo illustrativo, non un cedolino e non una consulenza fiscale.",
+                  "Impiegato a tempo indeterminato, anno intero, residente a Milano, senza familiari a carico e senza regimi agevolati.",
+                  "Contributi INPS all'aliquota standard del 9,19%: nessuna variazione settoriale, nessun massimale contributivo.",
+                  "Le addizionali sono trattate come dell'anno corrente. Nella realtà si calcolano sul reddito dell'anno precedente e si versano l'anno successivo tra saldo e acconto.",
+                  "Il netto mensile è il netto annuo diviso le mensilità. Le detrazioni spettano solo sulle 12 mensilità ordinarie, quindi la tredicesima è tassata quasi per intero e a dicembre il netto reale è più basso.",
+                  "Previdenza complementare non considerata: i contributi a un fondo pensione sono deducibili e aumenterebbero il netto.",
+                  "Le detrazioni non sono rapportate ai giorni di lavoro: per un anno intero il fattore è 365/365, ma non vale per chi è assunto in corso d'anno.",
+                  "Nessun arrotondamento all'euro: la busta paga arrotonda, quindi le ultime cifre possono differire.",
+                  "Non modellati: conguaglio di fine anno, trattamento integrativo, fringe benefit, welfare, buoni pasto, straordinari e premi di risultato.",
+                ].map((line) => (
+                  <li key={line} className="flex gap-2">
+                    <span aria-hidden className="text-border">
+                      —
+                    </span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </section>
         </div>
       </main>
     </div>

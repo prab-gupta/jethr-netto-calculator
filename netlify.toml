@@ -1,0 +1,21 @@
+# Netlify deployment config.
+#
+# @netlify/plugin-nextjs is auto-installed by Netlify when it detects Next.js,
+# so it is not listed here — pinning it manually is a common source of version
+# skew against the build image.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  # Match the local toolchain (Next.js 16 requires Node 20+).
+  NODE_VERSION = "24"
+
+# Deploy previews and branch builds get the same treatment as production —
+# this is a prototype, there is nothing environment-specific to gate.
+[context.deploy-preview]
+  command = "npm run build"
+
+[context.branch-deploy]
+  command = "npm run build"
