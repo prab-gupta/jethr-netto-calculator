@@ -142,10 +142,30 @@ whole euro, which hands ~€0,60 of net back and understates the cliff.
 Cross-checked against `calcolastipendionetto.it` (Lombardia, 13 mensilità, no
 dependants) by driving it with Playwright.
 
-At RAL €30.000 it returned **€24.789,00**; this tool returned **€23.425,52** —
-a 5,8% divergence, far outside the ~1–2% expected from differing simplifications.
-Worth running down rather than waving away, and it turned out both tools were
-wrong in different directions:
+| RAL | theirs | ours | delta | % |
+|---|---|---|---|---|
+| 15.000 | 13.621,50 | 14.197,95 | +576,45 | +4,23% |
+| 20.000 | 18.162,00 | 17.432,61 | −729,39 | −4,02% |
+| 25.000 | 21.724,50 | 20.569,65 | −1.154,85 | −5,32% |
+| 30.000 | 24.789,00 | 23.425,52 | −1.363,48 | −5,50% |
+| 45.000 | 30.279,50 | 30.034,26 | −245,24 | −0,81% |
+| 60.000 | 37.902,00 | 37.554,66 | −347,34 | −0,92% |
+
+**Above the exempt-sum bands the two agree within 1%, and the residual is
+entirely the comune.** Our Milano addizionale comunale is €326,92 at RAL 45.000
+and €435,59 at 60.000; the gaps are €245,24 and €347,34, leaving €81,68 and
+€88,25 — their region-only default comunale. Every other line reconciles to the
+cent, which independently validates INPS, all three IRPEF brackets, the
+detrazione tapers and the four regional bands.
+
+**Their low end does not hold up.** At RAL 15.000 they return €13.621,50, which
+is exactly 15.000 × 0,9081 — the imponibile fiscale. Same shape at 20.000
+(€18.162,00). They are printing gross-minus-INPS as the net: no IRPEF, no
+exempt sums. At 15.000 the tax is genuinely not fully absorbed (€3.132,95 lorda
+against a €1.955 detrazione), so that number cannot be right.
+
+The middle band is where the interesting disagreement was. At RAL €30.000 the
+5,5% gap turned out to be both tools wrong in different directions:
 
 - **Their side:** the calculator pays the full €1.200 trattamento integrativo
   across the whole 15k–28k band by default. The rule only pays to the extent
@@ -163,7 +183,10 @@ the fourth cliff documented above.
 
 **Takeaway:** a public calculator is a weaker oracle than the legislation. Use
 it to find *divergences worth investigating*, then resolve them against the
-primary source — never adopt its number because it disagrees.
+primary source — never adopt its number because it disagrees. Here the sweep
+across six incomes was worth far more than any single comparison: the tight
+agreement at the top validated the core engine, and the pattern at the bottom
+identified which tool was wrong.
 
 ## Assumptions and simplifications
 
