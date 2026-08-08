@@ -35,6 +35,8 @@
   --color-accent-deep: var(--accent-deep);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -49,6 +51,10 @@
   /* Card header bands, segmented-control track. */
   --muted: #f5f5f4;
   --muted-foreground: #6b6b6b;
+
+  /* Near-black, not pure — matches the product's "Salva" button. */
+  --primary: #1c1c1a;
+  --primary-foreground: #ffffff;
 
   /* Lime. A garnish: avatars, the netto figure, small markers. Never a
      button, never a large fill. It is a light colour — dark text on top. */

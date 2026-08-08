@@ -71,7 +71,18 @@ export default function Page() {
   const [mensilita, setMensilita] = useState<Mensilita>(13);
 
   const ral = Math.min(RAL_MAX, Math.max(0, Number(raw) || 0));
-  const r = useMemo(() => calcNet(ral, mensilita), [ral, mensilita]);
+
+  // Results are computed from COMMITTED inputs, not live ones: the brief asks
+  // for a page where the user enters inputs and sees the outputs on clicking
+  // "Calcola". Live-on-keystroke would be smoother but would not satisfy that.
+  const [submitted, setSubmitted] = useState({ ral: 30_000, mensilita: 13 as Mensilita });
+  const r = useMemo(
+    () => calcNet(submitted.ral, submitted.mensilita),
+    [submitted],
+  );
+
+  const dirty = ral !== submitted.ral || mensilita !== submitted.mensilita;
+  const calcola = () => setSubmitted({ ral, mensilita });
 
   const activeCliffs = CLIFFS.filter(
     (c) =>
@@ -129,7 +140,13 @@ export default function Page() {
           </div>
 
           {/* ---- Inputs ---- */}
-          <section className="mb-6 overflow-hidden rounded-xl border border-border">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              calcola();
+            }}
+            className="mb-6 overflow-hidden rounded-xl border border-border"
+          >
             <SectionBand>Dati di partenza</SectionBand>
 
             <div className="flex flex-wrap items-center gap-4 border-b border-border px-6 py-4">
@@ -171,6 +188,7 @@ export default function Page() {
                 {([13, 14] as const).map((m) => (
                   <button
                     key={m}
+                    type="button"
                     role="radio"
                     aria-checked={mensilita === m}
                     onClick={() => setMensilita(m)}
@@ -199,7 +217,21 @@ export default function Page() {
                 <option>Milano (Lombardia)</option>
               </select>
             </div>
-          </section>
+
+            <div className="flex flex-wrap items-center justify-end gap-4 border-t border-border bg-muted/40 px-6 py-4">
+              {dirty ? (
+                <span className="text-[13px] text-muted-foreground">
+                  Dati modificati — premi Calcola per aggiornare i risultati.
+                </span>
+              ) : null}
+              <button
+                type="submit"
+                className="rounded-lg bg-primary px-7 py-2.5 text-[15px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                Calcola
+              </button>
+            </div>
+          </form>
 
           {/* ---- Result ---- */}
           <section className="mb-6 overflow-hidden rounded-xl border border-border">
